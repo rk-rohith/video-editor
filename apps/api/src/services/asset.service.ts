@@ -12,6 +12,11 @@ function kindFromMimeType(mimeType: string): "image" | "video" | "audio" {
   return "video";
 }
 
+/** fileSizeBytes is stored as BigInt (files can exceed 2^31 bytes) but BigInt doesn't JSON-serialize. */
+function serializeAsset<T extends { fileSizeBytes: bigint | null }>(asset: T) {
+  return { ...asset, fileSizeBytes: asset.fileSizeBytes === null ? null : Number(asset.fileSizeBytes) };
+}
+
 export async function requestUploadUrl(projectId: string, userId: string, input: RequestUploadUrlRequest) {
   await getOwnedProject(projectId, userId);
   const extension = input.fileName.includes(".") ? input.fileName.split(".").pop() : "bin";
@@ -31,7 +36,7 @@ export async function registerAsset(projectId: string, userId: string, input: Re
       originalKey: input.objectKey,
       originalName: input.originalName,
       mimeType: input.mimeType,
-      fileSizeBytes: input.fileSizeBytes,
+      fileSizeBytes: BigInt(input.fileSizeBytes),
       status: "uploaded",
     },
   });
@@ -42,14 +47,14 @@ export async function registerAsset(projectId: string, userId: string, input: Re
   await mediaProcessingQueue.add(JOB_TYPES.processAsset, { assetId: asset.id, jobId: job.id }, { jobId: job.id });
   await prisma.asset.update({ where: { id: asset.id }, data: { status: "processing" } });
 
-  return { asset, jobId: job.id };
+  return { asset: serializeAsset(asset), jobId: job.id };
 }
 
 export async function listAssets(projectId: string, userId: string) {
   await getOwnedProject(projectId, userId);
   const assets = await prisma.asset.findMany({ where: { projectId }, orderBy: { createdAt: "desc" } });
   return assets.map((asset) => ({
-    ...asset,
+    ...serializeAsset(asset),
     originalUrl: storage.getObjectUrl(asset.originalKey),
     proxyUrl: asset.proxyKey ? storage.getObjectUrl(asset.proxyKey) : null,
     thumbnailUrl: asset.thumbnailKey ? storage.getObjectUrl(asset.thumbnailKey) : null,

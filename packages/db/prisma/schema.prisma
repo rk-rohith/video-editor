@@ -56,7 +56,7 @@ model Asset {
   width         Int?
   height        Int?
   fps           Float?
-  fileSizeBytes Int?
+  fileSizeBytes BigInt?
   contentHash   String?
   status        String   @default("uploaded") // uploaded | processing | ready | failed
   errorMessage  String?
