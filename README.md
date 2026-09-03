@@ -27,7 +27,8 @@ system design, data models, API surface, and phased roadmap. This README is just
   through one real Anthropic tool-calling pipeline (`apps/api/src/ai/`) that can only propose
   operations from the same closed set the manual editor uses — never touches state directly.
   Requires `ANTHROPIC_API_KEY` (see Environment variables below); without it, these endpoints
-  return a clear `503` instead of silently doing nothing.
+  return a clear `503` instead of silently doing nothing. Verified live both ways: the 503 without
+  a key, and a real chat edit ("add a title") correctly turning into an `addText` operation with one.
 - Everything above was verified against a live running stack (real ffmpeg processing, a real
   upload → analyze → edit → export round trip), not just unit tests — see "Verifying it works."
 
