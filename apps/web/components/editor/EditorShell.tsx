@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AIToolsPanel } from "./sidebar/AIToolsPanel";
 import { AudioPanel } from "./sidebar/AudioPanel";
 import { ComingSoonPanel } from "./sidebar/ComingSoonPanel";
 import { MediaLibrary } from "./sidebar/MediaLibrary";
@@ -50,7 +51,7 @@ export function EditorShell({ projectId }: { projectId: string }) {
             {tab === "transitions" && <TransitionsPanel />}
             {tab === "effects" && <ComingSoonPanel name="Effects" phase="Phase 4" />}
             {tab === "brand" && <ComingSoonPanel name="Brand Kit" phase="Phase 4" />}
-            {tab === "ai" && <ComingSoonPanel name="AI Tools" phase="Phase 2" note="Prompt-to-edit, auto asset matching, and natural-language timeline commands land in Phase 2/3 of the roadmap (see ARCHITECTURE.md)." />}
+            {tab === "ai" && <AIToolsPanel projectId={projectId} />}
           </div>
         </aside>
 

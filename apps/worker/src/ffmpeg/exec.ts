@@ -33,7 +33,6 @@ export interface FFprobeStream {
   duration?: string;
   rotation?: number;
 }
-
 export interface FFprobeResult {
   format: { duration?: string; size?: string };
   streams: FFprobeStream[];
@@ -61,4 +60,47 @@ export function parseFrameRate(rFrameRate: string | undefined): number | undefin
   const [num, den] = rFrameRate.split("/").map(Number);
   if (!num || !den) return undefined;
   return num / den;
+}
+
+/**
+ * Runs ffmpeg with `-loglevel info` and returns STDERR as text. This is
+ * deliberately the noisier log level: filters like `showinfo` and
+ * `metadata=print` (used by the analysis pipeline — see
+ * apps/worker/src/analysis/) emit their per-frame output through ffmpeg's
+ * own logger at "info" severity, and only to stderr, never stdout. Callers
+ * regex out the specific lines they care about and ignore the rest (input
+ * banner, stream mapping, etc).
+ */
+export function runFFmpegCaptureLog(args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      env.FFMPEG_PATH,
+      ["-hide_banner", "-loglevel", "info", ...args],
+      { maxBuffer: 1024 * 1024 * 64 },
+      (error, _stdout, stderr) => {
+        if (error) reject(new Error(`ffmpeg failed: ${error.message}`));
+        else resolve(stderr);
+      }
+    );
+  });
+}
+
+/**
+ * Runs ffmpeg and returns its raw stdout bytes (not decoded as text) —
+ * used to pull small raw-pixel buffers out via `-f rawvideo -` for the
+ * perceptual-hash duplicate-detection step, which needs actual pixel
+ * values rather than a filter-computed summary statistic.
+ */
+export function runFFmpegCaptureBuffer(args: string[]): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      env.FFMPEG_PATH,
+      ["-hide_banner", "-loglevel", "error", ...args],
+      { maxBuffer: 1024 * 1024 * 64, encoding: "buffer" },
+      (error, stdout) => {
+        if (error) reject(new Error(`ffmpeg failed: ${error.message}`));
+        else resolve(stdout as unknown as Buffer);
+      }
+    );
+  });
 }

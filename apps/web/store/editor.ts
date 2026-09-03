@@ -16,6 +16,8 @@ interface EditorState {
   error: string | null;
 
   init: (projectId: string, sequenceId: string, sequence: Sequence) => void;
+  /** Replaces the local sequence with a server-authoritative one — used after an AI command/auto-draft, whose operations were already applied and persisted server-side. */
+  setSequence: (sequence: Sequence) => void;
   selectClip: (id: string | null) => void;
   selectText: (id: string | null) => void;
   selectAudioClip: (id: string | null) => void;
@@ -39,6 +41,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   error: null,
 
   init: (projectId, sequenceId, sequence) => set({ projectId, sequenceId, sequence, error: null }),
+  setSequence: (sequence) => set({ sequence, error: null }),
   selectClip: (id) => set({ selectedClipId: id, selectedTextLayerId: null, selectedAudioClipId: null }),
   selectText: (id) => set({ selectedTextLayerId: id, selectedClipId: null, selectedAudioClipId: null }),
   selectAudioClip: (id) => set({ selectedAudioClipId: id, selectedClipId: null, selectedTextLayerId: null }),

@@ -1,9 +1,9 @@
 # AI-Powered Reference Video Editor — Platform
 
-A professional, non-destructive video editor with an AI editing layer planned on top of it. This
-repository currently implements **Phase 1** of the roadmap: a genuinely working manual editor
-(upload → arrange on a multitrack timeline → trim/split/transitions/text/audio → export a real
-MP4), plus the data-model and interface scaffolding the later AI phases build on.
+A professional, non-destructive video editor with an AI editing layer on top of it. This
+repository implements **Phase 1** (a genuinely working manual editor: upload → arrange on a
+multitrack timeline → trim/split/transitions/text/audio → export a real MP4) and **Phase 2**
+(deterministic asset analysis + AI-assisted editing on top of that same timeline).
 
 **Start here:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) — the full product/technical analysis,
 system design, data models, API surface, and phased roadmap. This README is just "how to run it."
@@ -20,11 +20,18 @@ system design, data models, API surface, and phased roadmap. This README is just
 - Server-side FFmpeg rendering: the same timeline JSON drives an independently-testable render
   graph, turned into a safe FFmpeg argv (no shell string interpolation), producing a downloadable
   MP4 with live progress.
-- Everything above was verified against real media through a real browser (Playwright), not just
-  unit tests — see "Verifying it works" below.
+- **Deterministic asset analysis** on every upload — quality score, sharpness/exposure, best-segment
+  recommendation for video, near-duplicate detection for photos — all local CV via FFmpeg's own
+  filters, no model call, surfaced in the media library as a quality badge + recommended usage.
+- **AI natural-language timeline editing and a prompt-to-first-draft auto-editor**, both routed
+  through one real Anthropic tool-calling pipeline (`apps/api/src/ai/`) that can only propose
+  operations from the same closed set the manual editor uses — never touches state directly.
+  Requires `ANTHROPIC_API_KEY` (see Environment variables below); without it, these endpoints
+  return a clear `503` instead of silently doing nothing.
+- Everything above was verified against a live running stack (real ffmpeg processing, a real
+  upload → analyze → edit → export round trip), not just unit tests — see "Verifying it works."
 
-No AI features ship in this pass — that's intentional; see `ARCHITECTURE.md` §2 for why Phase 1
-is deliberately AI-free, and §23 for what Phases 2–5 add.
+See `ARCHITECTURE.md` §23 for the rest of the phased roadmap (Phases 3–5).
 
 ## Prerequisites
 

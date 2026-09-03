@@ -43,3 +43,11 @@ assetsRouter.delete(
     res.status(204).end();
   })
 );
+
+assetsRouter.get(
+  "/:assetId/analysis",
+  asyncHandler(async (req, res) => {
+    const analysis = await assetService.getAssetAnalysis(req.params.assetId!, req.user!.id);
+    res.json({ analysis });
+  })
+);

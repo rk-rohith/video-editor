@@ -1,5 +1,7 @@
 import type {
   ApplyTimelineOperationsRequest,
+  AssetAnalysisData,
+  AutoDraftRequest,
   CreateProjectRequest,
   CreateRenderRequest,
   LoginRequest,
@@ -98,6 +100,17 @@ export const api = {
     request<{ render: RenderDto; jobId: string }>(`/api/projects/${projectId}/renders`, { method: "POST", body: JSON.stringify(body) }),
   getRender: (renderId: string) => request<{ render: RenderDto & { outputUrl: string | null } }>(`/api/renders/${renderId}`),
   getJob: (jobId: string) => request<{ job: JobDto }>(`/api/jobs/${jobId}`),
+
+  aiCommand: (sequenceId: string, message: string) =>
+    request<{ timelineVersion: { id: string; data: Sequence } | null; explanation: string }>(`/api/sequences/${sequenceId}/ai-command`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
+  autoDraft: (projectId: string, body: AutoDraftRequest) =>
+    request<{ timelineVersion: { id: string; data: Sequence }; explanation: string }>(`/api/projects/${projectId}/auto-draft`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };
 
 export async function uploadFileDirect(target: { uploadUrl: string; method: string; headers?: Record<string, string> }, file: File): Promise<void> {
@@ -131,6 +144,7 @@ export interface AssetDto {
   thumbnailUrl: string | null;
   waveformUrl: string | null;
   createdAt: string;
+  analysis: AssetAnalysisData | null;
 }
 
 export interface RenderDto {

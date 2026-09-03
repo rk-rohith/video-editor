@@ -8,6 +8,7 @@ import { processAssetJob } from "../processors/processAsset.js";
 import { storage } from "../storage.js";
 
 const execFileAsync = promisify(execFile);
+const FF = process.env.FFMPEG_PATH ?? "ffmpeg";
 
 const projectId = `test-project-${Date.now()}`;
 const userId = `test-user-${Date.now()}`;
@@ -43,7 +44,7 @@ describe("processAssetJob (worker integration)", () => {
     // ffmpeg/ffprobe pipeline runs against real files, not mocks.
     const videoPath = await storage.resolveForProcessing(videoAsset.originalKey);
     await fs.mkdir(path.dirname(videoPath), { recursive: true });
-    await execFileAsync("ffmpeg", [
+    await execFileAsync(FF, [
       "-y",
       "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24:duration=2",
       "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
@@ -52,7 +53,7 @@ describe("processAssetJob (worker integration)", () => {
 
     const imagePath = await storage.resolveForProcessing(imageAsset.originalKey);
     await fs.mkdir(path.dirname(imagePath), { recursive: true });
-    await execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=red:size=400x300", "-frames:v", "1", imagePath]);
+    await execFileAsync(FF, ["-y", "-f", "lavfi", "-i", "color=c=red:size=400x300", "-frames:v", "1", imagePath]);
   }, 30000);
 
   afterAll(async () => {

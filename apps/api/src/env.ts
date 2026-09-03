@@ -20,6 +20,11 @@ const envSchema = z.object({
   STORAGE_S3_PUBLIC_URL: z.string().optional(),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  // Optional on purpose — natural-language editing degrades to a clear "AI
+  // not configured" error rather than the server failing to boot. See
+  // apps/api/src/ai/index.ts.
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default("claude-sonnet-5"),
 });
 
 export type Env = z.infer<typeof envSchema>;

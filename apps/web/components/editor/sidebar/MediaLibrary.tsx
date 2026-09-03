@@ -61,9 +61,14 @@ function AssetRow({ asset, projectId }: { asset: AssetDto; projectId: string }) 
     void applyOps([{ op: "insertClip", args: { trackId: track.id, clip } }], `Added ${asset.originalName ?? asset.kind} to timeline`);
   }
 
+  const analysis = asset.analysis;
+  const qualityDotColor = !analysis ? null : analysis.qualityScore > 0.6 ? "bg-emerald-400" : analysis.qualityScore > 0.35 ? "bg-amber-400" : "bg-red-400";
+  const recommendation = analysis?.kind === "video" ? analysis.recommendedUsage : null;
+  const isDuplicate = analysis?.kind === "image" && analysis.duplicateOfAssetIds.length > 0;
+
   return (
-    <div className="group relative overflow-hidden rounded-md border border-border bg-panelAlt">
-      <div className="flex h-20 items-center justify-center bg-black/40">
+    <div className="group relative overflow-hidden rounded-md border border-border bg-panelAlt" title={recommendation ? `Asset Intelligence: recommended as ${recommendation}` : undefined}>
+      <div className="relative flex h-20 items-center justify-center bg-black/40">
         {asset.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={asset.thumbnailUrl} alt={asset.originalName ?? ""} className="h-full w-full object-cover" />
@@ -72,9 +77,18 @@ function AssetRow({ asset, projectId }: { asset: AssetDto; projectId: string }) 
         ) : (
           <span className="text-xs text-textMuted">Processing…</span>
         )}
+        {qualityDotColor && (
+          <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${qualityDotColor} ring-2 ring-black/40`} />
+        )}
+        {isDuplicate && (
+          <span className="absolute left-1 top-1 rounded bg-black/70 px-1 py-0.5 text-[9px] text-amber-300">possible duplicate</span>
+        )}
       </div>
       <div className="flex items-center justify-between gap-1 p-1.5">
-        <p className="truncate text-xs text-textMuted">{asset.originalName ?? asset.kind}</p>
+        <div className="min-w-0">
+          <p className="truncate text-xs text-textMuted">{asset.originalName ?? asset.kind}</p>
+          {recommendation && <p className="truncate text-[10px] text-textMuted/70">{recommendation}</p>}
+        </div>
         <Button
           variant="secondary"
           className="shrink-0 px-2 py-0.5 text-xs"
@@ -97,7 +111,15 @@ export function MediaLibrary({ projectId }: { projectId: string }) {
   const { data } = useQuery({
     queryKey: ["assets", projectId],
     queryFn: () => api.listAssets(projectId),
-    refetchInterval: (query) => (query.state.data?.assets.some((a) => a.status === "processing") ? 1500 : false),
+    refetchInterval: (query) => {
+      const assets = query.state.data?.assets ?? [];
+      const stillProcessing = assets.some((a) => a.status === "processing");
+      // Analysis is chained after the asset itself becomes "ready" (see
+      // apps/worker/src/processors/processAsset.ts), so keep polling a
+      // little longer for video/image assets that don't have it yet.
+      const analysisPending = assets.some((a) => a.status === "ready" && a.kind !== "audio" && a.analysis === null);
+      return stillProcessing || analysisPending ? 1500 : false;
+    },
   });
 
   const uploadMutation = useMutation({

@@ -1,7 +1,9 @@
 import { prisma } from "@video-editor/db";
+import { JOB_TYPES } from "@video-editor/shared";
 import { promises as fs } from "node:fs";
 import type { Job as BullJob } from "bullmq";
 import { generateImageProxy, generateThumbnail, generateVideoProxy, generateWaveform, probeMetadata } from "../ffmpeg/pipeline.js";
+import { analysisQueue } from "../queues.js";
 import { storage } from "../storage.js";
 
 interface ProcessAssetJobData {
@@ -95,6 +97,13 @@ export async function processAssetJob(bullJob: BullJob<ProcessAssetJobData>): Pr
       },
     });
     await prisma.job.update({ where: { id: jobId }, data: { status: "completed", progress: 100 } });
+
+    // Chain the deterministic analysis pass now that metadata (width/height/
+    // duration) is known-good — see processors/analyzeAsset.ts. Audio assets
+    // are skipped inside that job itself; enqueueing unconditionally here
+    // keeps this file from needing to know that decision.
+    const analysisJob = await prisma.job.create({ data: { type: JOB_TYPES.analyzeAsset, refId: asset.id, status: "queued" } });
+    await analysisQueue.add(JOB_TYPES.analyzeAsset, { assetId: asset.id, jobId: analysisJob.id }, { jobId: analysisJob.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown processing error";
     await prisma.asset.update({ where: { id: assetId }, data: { status: "failed", errorMessage: message } }).catch(() => undefined);

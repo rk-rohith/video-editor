@@ -655,8 +655,8 @@ video-editor/
 
 ## 23. Phased Development Plan
 
-- **Phase 1 (this pass — built)**: auth, projects, uploads, proxy/thumbnail/waveform generation, timeline data model, manual timeline editor (trim/split/reorder/text/basic audio/transitions), canvas preview player, FFmpeg export. Zero AI.
-- **Phase 2**: asset analysis (quality score, best-segment detection), prompt-to-editing-plan, automatic timeline generation from a plan, natural-language chat editing via the tool-calling architecture (§18/§29).
+- **Phase 1 (built)**: auth, projects, uploads, proxy/thumbnail/waveform generation, timeline data model, manual timeline editor (trim/split/reorder/text/basic audio/transitions), canvas preview player, FFmpeg export. Zero AI.
+- **Phase 2 (built)**: deterministic asset analysis (quality score, best-segment detection, near-duplicate flagging — §16, all local CV via FFmpeg's own filters, no model call), an `AIProvider` abstraction with a real Anthropic tool-calling implementation, natural-language chat editing, and a prompt-to-first-draft auto-editor built on the same tool-calling path (§18/§29). See §26 for what this requires to actually run (an API key) versus what's real regardless.
 - **Phase 3**: reference upload + analysis pipeline, Video DNA, asset-to-shot matching, reference-driven timeline generation, missing-asset detection.
 - **Phase 4**: beat sync, captions/transcription, auto-reframe, brand kit, quality analyzer, style presets, multi-version lightweight previews, semantic asset search.
 - **Phase 5**: distributed rendering, collaboration, subscriptions/quotas, GPU workloads where genuinely needed.
@@ -678,7 +678,8 @@ video-editor/
 
 ## 26. What Is Mocked / Stubbed in This Pass, and Why
 
-- **AI provider**: `AIProvider` interface exists in `packages/shared`; no concrete implementation ships in Phase 1 since Phase 1 is explicitly AI-free per the MVP definition (§2). This is not a limitation of the environment — it's the correct phased scope.
+- **AI provider**: `AIProvider` (`apps/api/src/ai/`) has a real `AnthropicAIProvider` — genuine tool-calling against the Anthropic Messages API, with the tool's JSON Schema generated directly from the same Zod schema (`aiEditPlanSchema`) the backend validates the response against, so the two can't drift apart. Nothing about it is a stub. What IS environment-dependent: no `ANTHROPIC_API_KEY` existed in the environment this was built and tested in, so the live model round-trip itself was never exercised end-to-end here — everything up to and after that boundary was (request validation, asset-context building, operation application, the "not configured" error path). Without a key, `createAIProvider()` returns `NotConfiguredAIProvider`, which fails loudly with a clear message rather than silently no-opping; this was verified for real against the live dev stack (a 503 with `"...ANTHROPIC_API_KEY..."`), not assumed.
+- **Deterministic asset analysis** (quality score, sharpness, exposure, scene cuts, best-segment, near-duplicate detection — `apps/worker/src/analysis/`): fully real, no model call, verified against real generated fixture media (sharp vs. blurred footage, a real scene cut, near-duplicate photos) both in the automated test suite and live through the running API.
 - **Malware/virus scanning on upload**: interface point identified (§19) but no scanner wired in — real deployment should plug in a scanning service; not simulated here since a fake scanner would be actively misleading.
 - **S3 storage provider**: implemented against the S3 API shape but Phase 1 runs against `LocalDiskStorageProvider` in dev, since no real cloud credentials exist in this environment; switching providers is a config change, not a code change, by design.
 - **Email delivery** (password reset, notifications): not implemented; out of scope for Phase 1 functional-editor MVP.

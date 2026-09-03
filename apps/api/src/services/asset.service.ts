@@ -1,5 +1,5 @@
 import { prisma } from "@video-editor/db";
-import { JOB_TYPES, type RegisterAssetRequest, type RequestUploadUrlRequest } from "@video-editor/shared";
+import { assetAnalysisDataSchema, JOB_TYPES, type RegisterAssetRequest, type RequestUploadUrlRequest } from "@video-editor/shared";
 import { NotFoundError } from "../lib/errors.js";
 import { createId } from "../lib/id.js";
 import { storage } from "../lib/storage.js";
@@ -52,20 +52,32 @@ export async function registerAsset(projectId: string, userId: string, input: Re
 
 export async function listAssets(projectId: string, userId: string) {
   await getOwnedProject(projectId, userId);
-  const assets = await prisma.asset.findMany({ where: { projectId }, orderBy: { createdAt: "desc" } });
-  return assets.map((asset) => ({
-    ...serializeAsset(asset),
-    originalUrl: storage.getObjectUrl(asset.originalKey),
-    proxyUrl: asset.proxyKey ? storage.getObjectUrl(asset.proxyKey) : null,
-    thumbnailUrl: asset.thumbnailKey ? storage.getObjectUrl(asset.thumbnailKey) : null,
-    waveformUrl: asset.waveformKey ? storage.getObjectUrl(asset.waveformKey) : null,
-  }));
+  const assets = await prisma.asset.findMany({ where: { projectId }, orderBy: { createdAt: "desc" }, include: { analysis: true } });
+  return assets.map(({ analysis, ...asset }) => {
+    const parsedAnalysis = analysis ? assetAnalysisDataSchema.safeParse(analysis.data) : null;
+    return {
+      ...serializeAsset(asset),
+      analysis: parsedAnalysis?.success ? parsedAnalysis.data : null,
+      originalUrl: storage.getObjectUrl(asset.originalKey),
+      proxyUrl: asset.proxyKey ? storage.getObjectUrl(asset.proxyKey) : null,
+      thumbnailUrl: asset.thumbnailKey ? storage.getObjectUrl(asset.thumbnailKey) : null,
+      waveformUrl: asset.waveformKey ? storage.getObjectUrl(asset.waveformKey) : null,
+    };
+  });
 }
 
 export async function getOwnedAsset(assetId: string, userId: string) {
   const asset = await prisma.asset.findUnique({ where: { id: assetId }, include: { project: true } });
   if (!asset || asset.project.userId !== userId) throw new NotFoundError("Asset not found");
   return asset;
+}
+
+export async function getAssetAnalysis(assetId: string, userId: string) {
+  await getOwnedAsset(assetId, userId);
+  const analysis = await prisma.assetAnalysis.findUnique({ where: { assetId } });
+  if (!analysis) return null;
+  const parsed = assetAnalysisDataSchema.safeParse(analysis.data);
+  return parsed.success ? parsed.data : null;
 }
 
 export async function deleteAsset(assetId: string, userId: string) {

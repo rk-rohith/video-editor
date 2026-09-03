@@ -10,7 +10,7 @@ export async function getOwnedJob(jobId: string, userId: string) {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) throw new NotFoundError("Job not found");
 
-  if (job.type === JOB_TYPES.processAsset) {
+  if (job.type === JOB_TYPES.processAsset || job.type === JOB_TYPES.analyzeAsset) {
     const asset = await prisma.asset.findUnique({ where: { id: job.refId }, include: { project: true } });
     if (!asset || asset.project.userId !== userId) throw new NotFoundError("Job not found");
   } else if (job.type === JOB_TYPES.render) {

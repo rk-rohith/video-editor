@@ -76,6 +76,24 @@ describe("API integration (Phase 1 core flow)", () => {
     expect(res.body.objectKey).toContain(projectId);
   });
 
+  it("registers an asset, lists it with a null analysis field, and returns null from the analysis endpoint before the worker has run", async () => {
+    const registerRes = await request(app)
+      .post(`/api/projects/${projectId}/assets`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ objectKey: `users/x/projects/${projectId}/assets/a1/original.mp4`, originalName: "clip.mp4", mimeType: "video/mp4", fileSizeBytes: 1024 });
+    expect(registerRes.status).toBe(201);
+    const assetId = registerRes.body.asset.id;
+
+    const listRes = await request(app).get(`/api/projects/${projectId}/assets`).set("Authorization", `Bearer ${accessToken}`);
+    expect(listRes.status).toBe(200);
+    const listed = listRes.body.assets.find((a: { id: string }) => a.id === assetId);
+    expect(listed.analysis).toBeNull();
+
+    const analysisRes = await request(app).get(`/api/assets/${assetId}/analysis`).set("Authorization", `Bearer ${accessToken}`);
+    expect(analysisRes.status).toBe(200);
+    expect(analysisRes.body.analysis).toBeNull();
+  });
+
   it("rejects a second user reading the first user's project", async () => {
     const other = await request(app).post("/api/auth/register").send({ email: `other-${Date.now()}@example.com`, password: "hunter22222" });
     const res = await request(app).get(`/api/projects/${projectId}`).set("Authorization", `Bearer ${other.body.accessToken}`);
@@ -138,5 +156,31 @@ describe("API integration (Phase 1 core flow)", () => {
     expect(res.status).toBe(201);
     expect(res.body.render.status).toBe("queued");
     expect(res.body.jobId).toBeTypeOf("string");
+  });
+
+  it("returns a clear 503 from AI chat editing when no ANTHROPIC_API_KEY is configured (this test env has none)", async () => {
+    const res = await request(app)
+      .post(`/api/sequences/${sequenceId}/ai-command`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ message: "make the intro faster" });
+    expect(res.status).toBe(503);
+    expect(res.body.error).toContain("ANTHROPIC_API_KEY");
+  });
+
+  it("rejects auto-draft with a clear 400 when the project has no ready assets yet", async () => {
+    const res = await request(app)
+      .post(`/api/projects/${projectId}/auto-draft`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ prompt: "Create a cinematic travel video" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("no ready assets");
+  });
+
+  it("rejects an empty AI chat message", async () => {
+    const res = await request(app)
+      .post(`/api/sequences/${sequenceId}/ai-command`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ message: "" });
+    expect(res.status).toBe(400);
   });
 });

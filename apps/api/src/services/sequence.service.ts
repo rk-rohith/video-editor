@@ -1,5 +1,5 @@
 import { prisma } from "@video-editor/db";
-import { applyOperations, OperationError, sequenceSchema, type ApplyTimelineOperationsRequest } from "@video-editor/shared";
+import { applyOperations, OperationError, sequenceSchema, type ApplyTimelineOperationsRequest, type Sequence } from "@video-editor/shared";
 import { BadRequestError, NotFoundError } from "../lib/errors.js";
 
 export async function getOwnedSequence(sequenceId: string, userId: string) {
@@ -8,16 +8,27 @@ export async function getOwnedSequence(sequenceId: string, userId: string) {
   return sequence;
 }
 
+/** The sequence's current timeline data — used by the AI service to build prompt context before proposing operations. */
+export async function getCurrentSequenceData(sequenceId: string, userId: string): Promise<Sequence> {
+  const sequence = await getOwnedSequence(sequenceId, userId);
+  if (!sequence.currentVersionId) throw new BadRequestError("Sequence has no current version");
+  const currentVersion = await prisma.timelineVersion.findUnique({ where: { id: sequence.currentVersionId } });
+  if (!currentVersion) throw new BadRequestError("Sequence's current version is missing");
+  return sequenceSchema.parse(currentVersion.data);
+}
+
 /**
  * Applies a validated batch of timeline operations to a sequence's current
  * version, producing exactly ONE new TimelineVersion row — see
  * ARCHITECTURE.md §18/§22/§29. This is the single choke point every
- * timeline mutation passes through, manual or (from Phase 2) AI-driven.
+ * timeline mutation passes through, manual or (from Phase 2) AI-driven —
+ * `createdBy` just records which one proposed this particular version.
  */
 export async function applyTimelineOperations(
   sequenceId: string,
   userId: string,
-  input: ApplyTimelineOperationsRequest
+  input: ApplyTimelineOperationsRequest,
+  createdBy: "user" | "ai" = "user"
 ) {
   const sequence = await getOwnedSequence(sequenceId, userId);
   if (!sequence.currentVersionId) throw new BadRequestError("Sequence has no current version");
@@ -39,7 +50,7 @@ export async function applyTimelineOperations(
       sequenceId,
       label: input.label,
       data: validated,
-      createdBy: "user",
+      createdBy,
       parentVersionId: currentVersion.id,
     },
   });
