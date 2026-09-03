@@ -1,0 +1,185 @@
+// Prisma schema — see ARCHITECTURE.md §10 for design rationale.
+// Binary media never lives in Postgres; only object-storage keys/URLs are stored.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+
+  projects  Project[]
+  brandKits BrandKit[]
+}
+
+model Project {
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  status              String   @default("draft") // draft | processing | ready | archived
+  aspectRatio         String   @default("9:16")
+  targetDurationTicks Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  assets             Asset[]
+  sequences          Sequence[]
+  renders            Render[]
+  referenceAnalyses  ReferenceAnalysis[]
+
+  @@index([userId])
+}
+
+model Asset {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind          String   // image | video | audio
+  role          String   @default("raw") // raw | reference | logo | music | voiceover
+  originalKey   String
+  originalName  String?
+  mimeType      String?
+  proxyKey      String?
+  thumbnailKey  String?
+  waveformKey   String?
+  durationTicks Int?
+  width         Int?
+  height        Int?
+  fps           Float?
+  fileSizeBytes Int?
+  contentHash   String?
+  status        String   @default("uploaded") // uploaded | processing | ready | failed
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  analysis AssetAnalysis?
+
+  @@index([projectId])
+}
+
+model AssetAnalysis {
+  id           String   @id @default(cuid())
+  assetId      String   @unique
+  asset        Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  data         Json
+  modelVersion String?
+  createdAt    DateTime @default(now())
+}
+
+model ReferenceAnalysis {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assetId   String
+  videoDna  Json?
+  status    String   @default("pending") // pending | processing | ready | failed
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model VideoDnaTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  videoDna  Json
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Sequence {
+  id               String   @id @default(cuid())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name             String   @default("Main Sequence")
+  currentVersionId String?
+  createdAt        DateTime @default(now())
+
+  versions TimelineVersion[] @relation("SequenceVersions")
+
+  @@index([projectId])
+}
+
+model TimelineVersion {
+  id              String   @id @default(cuid())
+  sequenceId      String
+  sequence        Sequence @relation("SequenceVersions", fields: [sequenceId], references: [id], onDelete: Cascade)
+  label           String?
+  data            Json
+  createdBy       String   @default("user") // user | ai
+  parentVersionId String?
+  createdAt       DateTime @default(now())
+
+  @@index([sequenceId])
+}
+
+model Render {
+  id                String    @id @default(cuid())
+  projectId         String
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  timelineVersionId String
+  jobId             String?   @unique
+  outputKey         String?
+  format            String    @default("mp4")
+  resolution        String    @default("1080p")
+  fps               Int       @default(30)
+  status            String    @default("queued") // queued|processing|completed|failed|cancelled
+  progress          Float     @default(0)
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  @@index([projectId])
+}
+
+model Job {
+  id           String   @id @default(cuid())
+  type         String   // proxy | thumbnail | waveform | metadata | analysis | render | transcription
+  refId        String
+  status       String   @default("queued") // queued|processing|completed|failed|cancelled
+  progress     Float    @default(0)
+  attempts     Int      @default(0)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([refId])
+  @@index([type, status])
+}
+
+model BrandKit {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  logoKey      String?
+  colors       Json?
+  fontFamily   String?
+  introAssetId String?
+  outroAssetId String?
+  watermarkKey String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Template {
+  id        String   @id @default(cuid())
+  userId    String?
+  name      String
+  category  String?
+  data      Json
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
